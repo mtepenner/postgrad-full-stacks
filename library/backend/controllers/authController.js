@@ -2,6 +2,7 @@
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
+import jwt from 'jsonwebtoken';
 
 const prisma = new PrismaClient();
 
@@ -51,5 +52,32 @@ export const registerUser = async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ error: "Registration failed." });
+  }
+};
+
+export const loginUser = async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ error: "Invalid credentials." });
+
+    // Generate a secure JWT containing the user's ID and Role
+    const token = jwt.sign(
+      { id: user.id, role: user.role }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '1d' }
+    );
+    
+    res.status(200).json({ 
+      token, 
+      role: user.role, 
+      visitorId: user.visitorId 
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Login failed." });
   }
 };
